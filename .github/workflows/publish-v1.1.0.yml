@@ -1,0 +1,37 @@
+name: Publish v1.1.0
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-v1.1.0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build and test
+        shell: powershell
+        run: |
+          .\build_exe.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\tests\logic.tests.ps1
+          .\tests\build.tests.ps1
+          Compress-Archive -Path '.\课表导入软件\*' -DestinationPath '.\课表导入软件-v1.1.0.zip' -Force
+
+      - name: Publish GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v1.1.0 '.\课表导入软件-v1.1.0.zip' `
+            --target $env:GITHUB_SHA `
+            --title 'v1.1.0 - Safer launcher and application icon' `
+            --notes-file '.\RELEASE_NOTES_v1.1.0.md'

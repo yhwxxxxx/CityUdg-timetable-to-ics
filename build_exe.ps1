@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$CertificateThumbprint = $env:TIMETABLE_IMPORTER_SIGNING_THUMBPRINT
 )
 

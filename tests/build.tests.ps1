@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $release = Join-Path $root "课表导入软件"
 $exe = Join-Path $release "课表导入程序.exe"

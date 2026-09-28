@@ -24,6 +24,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\tests\logic.tests.ps1
           .\tests\build.tests.ps1
+
+      - name: Package release
+        shell: powershell
+        run: |
           $builtExe = Get-ChildItem -Recurse -Filter '*.exe' |
             Where-Object { $_.FullName -notmatch '\\.git\\' } |
             Select-Object -First 1

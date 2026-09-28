@@ -1,9 +1,20 @@
 using System;
-using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Management.Automation;
+using System.Management.Automation.Runspaces;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
+
+[assembly: AssemblyTitle("课表导入程序")]
+[assembly: AssemblyDescription("将课表文字或图片转换为 iCalendar (.ics) 文件")]
+[assembly: AssemblyCompany("CityUdg Timetable to ICS")]
+[assembly: AssemblyProduct("课表导入程序")]
+[assembly: AssemblyCopyright("Copyright © 2026")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace TimetableImporterLauncher
 {
@@ -14,32 +25,20 @@ namespace TimetableImporterLauncher
         {
             try
             {
-                string script = ReadEmbeddedScript();
-                string appDataDir = Path.Combine(
-                    Path.GetTempPath(),
-                    "TimetableImporter");
+                string applicationDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string scriptPath = Path.Combine(applicationDirectory, "timetable_importer.ps1");
 
-                Directory.CreateDirectory(appDataDir);
-                string scriptPath = Path.Combine(appDataDir, "timetable_importer.ps1");
-                File.WriteAllText(scriptPath, script, new UTF8Encoding(true));
-
-                string powershellPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.System),
-                    @"WindowsPowerShell\v1.0\powershell.exe");
-
-                if (!File.Exists(powershellPath))
+                if (!File.Exists(scriptPath))
                 {
-                    powershellPath = "powershell.exe";
+                    throw new FileNotFoundException(
+                        "程序文件不完整：找不到 timetable_importer.ps1。" + Environment.NewLine +
+                        "请解压整个发布包，不要只复制 exe 文件。",
+                        scriptPath);
                 }
 
-                ProcessStartInfo startInfo = new ProcessStartInfo();
-                startInfo.FileName = powershellPath;
-                startInfo.Arguments = "-NoProfile -STA -ExecutionPolicy Bypass -File " + Quote(scriptPath);
-                startInfo.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                startInfo.UseShellExecute = false;
-                startInfo.CreateNoWindow = true;
-
-                Process.Start(startInfo);
+                Directory.SetCurrentDirectory(applicationDirectory);
+                string script = File.ReadAllText(scriptPath, Encoding.UTF8);
+                RunScriptInCurrentProcess(script);
             }
             catch (Exception ex)
             {
@@ -51,26 +50,31 @@ namespace TimetableImporterLauncher
             }
         }
 
-        private static string ReadEmbeddedScript()
+        private static void RunScriptInCurrentProcess(string script)
         {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            using (Stream stream = assembly.GetManifestResourceStream("EmbeddedTimetableImporter"))
-            {
-                if (stream == null)
-                {
-                    throw new InvalidOperationException("没有找到内置程序文件。");
-                }
+            InitialSessionState sessionState = InitialSessionState.CreateDefault();
 
-                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            using (Runspace runspace = RunspaceFactory.CreateRunspace(sessionState))
+            {
+                runspace.ApartmentState = ApartmentState.STA;
+                runspace.ThreadOptions = PSThreadOptions.UseCurrentThread;
+                runspace.Open();
+
+                using (PowerShell powerShell = PowerShell.Create())
                 {
-                    return reader.ReadToEnd();
+                    powerShell.Runspace = runspace;
+                    powerShell.AddScript(script, false);
+                    powerShell.Invoke();
+
+                    if (powerShell.HadErrors)
+                    {
+                        string details = string.Join(
+                            Environment.NewLine,
+                            powerShell.Streams.Error.Select(error => error.ToString()).ToArray());
+                        throw new InvalidOperationException(details);
+                    }
                 }
             }
-        }
-
-        private static string Quote(string value)
-        {
-            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
     }
 }
